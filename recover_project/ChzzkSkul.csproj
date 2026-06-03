@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ChzzkSkul</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>net40</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>15.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>False</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="UnityEngine.UnityWebRequestModule" />
+    <Reference Include="UnityEngine.CoreModule" />
+    <Reference Include="websocket-sharp">
+      <HintPath>bin/Debug/net462/websocket-sharp.dll</HintPath>
+    </Reference>
+    <Reference Include="UniTask">
+      <HintPath>bin/Debug/net462/UniTask.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>bin/Debug/net462/Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx" />
+    <Reference Include="Assembly-CSharp" />
+    <Reference Include="System.Core" />
+    <Reference Include="UnityEngine.IMGUIModule" />
+    <Reference Include="Assembly-CSharp-firstpass" />
+    <Reference Include="0Harmony" />
+    <Reference Include="System.ValueTuple">
+      <HintPath>bin/Debug/net462/System.ValueTuple.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule" />
+    <Reference Include="UnityEngine.InputLegacyModule" />
+    <Reference Include="UnityEngine.TextRenderingModule" />
+    <Reference Include="Plugins.Common" />
+    <Reference Include="Plugins.Singletons" />
+    <Reference Include="UnityEngine.Physics2DModule" />
+  </ItemGroup>
+</Project>
