@@ -27,6 +27,100 @@ namespace ChzzkSkul;
 
 public class ChzzkGameMode : MonoBehaviour
 {
+	public static class ChzzkStatManager
+	{
+		public class StatData
+		{
+			public double percentPoint = 0;
+			public double constant = 0;
+		}
+
+		private static string saveFilePath => System.IO.Path.Combine(UnityEngine.Application.persistentDataPath, "ChzzkSkul_SavedStats.json");
+
+		public static Dictionary<Characters.Stat.Kind, StatData> SavedStats = new Dictionary<Characters.Stat.Kind, StatData>();
+
+		public static void Load()
+		{
+			try
+			{
+				if (System.IO.File.Exists(saveFilePath))
+				{
+					string json = System.IO.File.ReadAllText(saveFilePath);
+					SavedStats = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<Characters.Stat.Kind, StatData>>(json) ?? new Dictionary<Characters.Stat.Kind, StatData>();
+				}
+			}
+			catch (Exception ex)
+			{
+				UnityEngine.Debug.LogError("[ChzzkStatManager] Load Error: " + ex.Message);
+			}
+		}
+
+		public static void Save()
+		{
+			try
+			{
+				string json = Newtonsoft.Json.JsonConvert.SerializeObject(SavedStats);
+				System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(saveFilePath));
+				System.IO.File.WriteAllText(saveFilePath, json);
+			}
+			catch (Exception ex)
+			{
+				UnityEngine.Debug.LogError("[ChzzkStatManager] Save Error: " + ex.Message);
+			}
+		}
+
+		public static void AddStat(Characters.Character player, Characters.Stat.Category category, Characters.Stat.Kind kind, double value)
+		{
+			if (!SavedStats.ContainsKey(kind))
+				SavedStats[kind] = new StatData();
+
+			if (category == Characters.Stat.Category.PercentPoint)
+				SavedStats[kind].percentPoint += value;
+			else if (category == Characters.Stat.Category.Constant)
+				SavedStats[kind].constant += value;
+
+			Save();
+
+			if (player != null && player.stat != null)
+			{
+				player.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[] {
+					new Characters.Stat.Value(category, kind, value)
+				}));
+			}
+		}
+
+		public static void ApplyToPlayer(Characters.Character player)
+		{
+			if (player == null || player.stat == null) return;
+			
+			foreach (var kvp in SavedStats)
+			{
+				if (kvp.Value.percentPoint != 0)
+				{
+					player.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[] {
+						new Characters.Stat.Value(Characters.Stat.Category.PercentPoint, kvp.Key, kvp.Value.percentPoint)
+					}));
+				}
+				if (kvp.Value.constant != 0)
+				{
+					player.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[] {
+						new Characters.Stat.Value(Characters.Stat.Category.Constant, kvp.Key, kvp.Value.constant)
+					}));
+				}
+			}
+		}
+
+		public static void Clear()
+		{
+			if (SavedStats.Count > 0)
+			{
+				SavedStats.Clear();
+				Save();
+				UnityEngine.Debug.Log("[ChzzkStatManager] Cleared saved stats because a new run started.");
+			}
+		}
+	}
+
 	private struct CommandInfo
 	{
 		public string nickname;
@@ -177,7 +271,10 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 		_instance = this;
 		UnityEngine.Object.DontDestroyOnLoad((UnityEngine.Object)(object)((Component)this).gameObject);
+		ChzzkStatManager.Load();
 	}
+
+	private Character _lastPlayerForStats;
 
 	private void Update()
 	{
@@ -200,6 +297,21 @@ public class ChzzkGameMode : MonoBehaviour
 				_chatMessages.Dequeue();
 			}
 		}
+
+		Character player = GetPlayer();
+		if ((UnityEngine.Object)(object)player != (UnityEngine.Object)null && (UnityEngine.Object)(object)player != (UnityEngine.Object)(object)_lastPlayerForStats)
+		{
+			_lastPlayerForStats = player;
+			if ((UnityEngine.Object)(object)Map.Instance != (UnityEngine.Object)null && (Map.Instance.name.Contains("Castle") || Map.Instance.name.Contains("Tutorial") || Map.Instance.name.Contains("Test")))
+			{
+				ChzzkStatManager.Clear();
+			}
+			else
+			{
+				ChzzkStatManager.ApplyToPlayer(player);
+			}
+		}
+
 		while (_chatMessages.Count > 0 && Time.unscaledTime > _chatMessages.Peek().expireTime)
 		{
 			_chatMessages.Dequeue();
@@ -1192,18 +1304,12 @@ public class ChzzkGameMode : MonoBehaviour
 		{
 			if (_random.Next(2) == 0)
 			{
-				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
-				{
-					new Value(Category.PercentPoint, Kind.TakingDamage, -0.1)
-				}));
+				ChzzkStatManager.AddStat(player, Category.PercentPoint, Kind.TakingDamage, -0.1);
 				ShowFloatingText(nickname + "이(가) 방어력(받는 피해 10% 감소) 축복을 내렸어요!");
 			}
 			else
 			{
-				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
-				{
-					new Value(Category.PercentPoint, Kind.TakingDamage, 0.1)
-				}));
+				ChzzkStatManager.AddStat(player, Category.PercentPoint, Kind.TakingDamage, 0.1);
 				ShowFloatingText(nickname + "이(가) 방어력(받는 피해 10% 증가) 저주를 내렸어요!");
 			}
 		}
@@ -1251,18 +1357,12 @@ public class ChzzkGameMode : MonoBehaviour
 				{
 					delta = -(player.health.maximumHealth - 1);
 				}
-				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
-				{
-					new Value(Category.Constant, val, delta)
-				}));
+				ChzzkStatManager.AddStat(player, Category.Constant, val, delta);
 				ShowFloatingText($"{nickname}이(가) {text3}을 내렸어요! {text} {Math.Abs(delta)} {text2}!");
 			}
 			else
 			{
-				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
-				{
-					new Value(Category.PercentPoint, val, (double)num2)
-				}));
+				ChzzkStatManager.AddStat(player, Category.PercentPoint, val, (double)num2);
 				ShowFloatingText(nickname + "이(가) " + text3 + "을 내렸어요! " + text + " 10% " + text2 + "!");
 			}
 		}
