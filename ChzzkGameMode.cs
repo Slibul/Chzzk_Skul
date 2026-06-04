@@ -1190,11 +1190,22 @@ public class ChzzkGameMode : MonoBehaviour
 		if ((UnityEngine.Object)(object)player == (UnityEngine.Object)null) return;
 		try
 		{
-			player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+			if (_random.Next(2) == 0)
 			{
-				new Value(Category.PercentPoint, Kind.TakingDamage, -0.1)
-			}));
-			ShowFloatingText(nickname + "이(가) 방어력 10% 증가 축복을 내렸어요!");
+				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+				{
+					new Value(Category.PercentPoint, Kind.TakingDamage, -0.1)
+				}));
+				ShowFloatingText(nickname + "이(가) 방어력(받는 피해 10% 감소) 축복을 내렸어요!");
+			}
+			else
+			{
+				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+				{
+					new Value(Category.PercentPoint, Kind.TakingDamage, 0.1)
+				}));
+				ShowFloatingText(nickname + "이(가) 방어력(받는 피해 10% 증가) 저주를 내렸어요!");
+			}
 		}
 		catch
 		{
@@ -2313,7 +2324,7 @@ public class ChzzkGameMode : MonoBehaviour
 			},
 			new VoteOption
 			{
-				Title = "방어력 10% 증가",
+				Title = "방어력 (랜덤 증감)",
 				Votes = 0,
 				Action = delegate(string n) { DoDefense(n); }
 			}
