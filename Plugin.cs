@@ -31,6 +31,7 @@ public class Plugin : BaseUnityPlugin
     public static ConfigEntry<bool> AllowDarkQuartz;
     public static ConfigEntry<bool> AllowQuintessence;
     public static ConfigEntry<bool> AllowFragment;
+    public static ConfigEntry<bool> AllowDefense;
 
     // 투표 기능 설정
     public static ConfigEntry<bool> EnableVote;
@@ -54,12 +55,16 @@ public class Plugin : BaseUnityPlugin
     public static ConfigEntry<string> CmdRandomStatString;
     public static ConfigEntry<string> CmdNpcString;
     public static ConfigEntry<string> CmdFoodString;
-    public static ConfigEntry<string> CmdFindNpcString;
     public static ConfigEntry<string> CmdBoneString;
     public static ConfigEntry<string> CmdGoldString;
     public static ConfigEntry<string> CmdDarkQuartzString;
     public static ConfigEntry<string> CmdQuintessenceString;
     public static ConfigEntry<string> CmdFragmentString;
+    public static ConfigEntry<string> CmdDefenseString;
+
+    public static ConfigEntry<bool> EnableChatCommands;
+    public static ConfigEntry<bool> EnableChaosMode;
+    public static ConfigEntry<float> ChaosIntervalSeconds;
 
     private void Awake()
     {
@@ -85,6 +90,7 @@ public class Plugin : BaseUnityPlugin
         AllowDarkQuartz = Config.Bind<bool>("Commands", "마석 활성화", true, "!마석 명령어 활성화 여부");
         AllowQuintessence = Config.Bind<bool>("Commands", "정수 활성화", true, "!정수 명령어 활성화 여부");
         AllowFragment = Config.Bind<bool>("Commands", "파편 활성화", true, "!파편 명령어 활성화 여부");
+        AllowDefense = Config.Bind<bool>("Commands", "방어력 활성화", true, "!방어력 명령어 활성화 여부");
 
         EnableVote = Config.Bind<bool>("Vote", "채팅 투표 활성화", true, "자동 채팅 투표 시스템을 켤지 끌지 설정합니다.");
         VoteTriggerMode = Config.Bind<string>("Vote", "투표 시작 방식", "Scene", "투표를 여는 방식: 'Timer'(시간마다) 또는 'Scene'(맵 이동 시마다)");
@@ -107,12 +113,15 @@ public class Plugin : BaseUnityPlugin
         CmdRandomStatString = Config.Bind<string>("CommandStrings", "랜덤스탯 명령어", "!randomstat,!랜덤스탯", "쉼표(,)로 구분하세요.");
         CmdNpcString = Config.Bind<string>("CommandStrings", "NPC 명령어", "!npc,!엔피씨,!상인,!npc스폰", "쉼표(,)로 구분하세요.");
         CmdFoodString = Config.Bind<string>("CommandStrings", "음식 명령어", "!food,!음식,!밥", "쉼표(,)로 구분하세요.");
-        CmdFindNpcString = Config.Bind<string>("CommandStrings", "NPC찾기 명령어", "!findnpc,!npc찾기", "쉼표(,)로 구분하세요.");
         CmdBoneString = Config.Bind<string>("CommandStrings", "뼈 명령어", "!bone,!뼈", "쉼표(,)로 구분하세요.");
         CmdGoldString = Config.Bind<string>("CommandStrings", "골드 명령어", "!gold,!골드,!돈", "쉼표(,)로 구분하세요.");
         CmdDarkQuartzString = Config.Bind<string>("CommandStrings", "마석 명령어", "!darkquartz,!마석", "쉼표(,)로 구분하세요.");
         CmdQuintessenceString = Config.Bind<string>("CommandStrings", "정수 명령어", "!quintessence,!정수", "쉼표(,)로 구분하세요.");
-        CmdFragmentString = Config.Bind<string>("CommandStrings", "파편 명령어", "!파편,!fragment", "쉼표(,)로 구분하세요.");
+        CmdFragmentString = ((BaseUnityPlugin)this).Config.Bind<string>("CommandStrings", "파편 명령어", "!파편,!fragment", "쉼표(,)로 구분하세요.");
+        CmdDefenseString = Config.Bind<string>("CommandStrings", "방어력 명령어", "!defense,!방어력", "쉼표(,)로 구분하세요.");
+        EnableChatCommands = ((BaseUnityPlugin)this).Config.Bind<bool>("General", "채팅 명령어 활성화", true, "모든 채팅 명령어를 켜거나 끕니다.");
+        EnableChaosMode = ((BaseUnityPlugin)this).Config.Bind<bool>("General", "카오스 모드 활성화", false, "정해진 시간마다 무작위 명령어가 자동 실행됩니다.");
+        ChaosIntervalSeconds = ((BaseUnityPlugin)this).Config.Bind<float>("General", "카오스 모드 발동 간격 (초)", 60f, "카오스 모드가 발동될 주기(초)입니다.");
 
         Harmony.CreateAndPatchAll(typeof(OmenChestPath));
         Logger.LogInfo($"Mod {MyPluginInfo.PLUGIN_GUID} is loaded!");

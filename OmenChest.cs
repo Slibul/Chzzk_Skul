@@ -43,6 +43,38 @@ public class OmenChestPath
         }
     }
 
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(Level.DarkEnemySelector), nameof(Level.DarkEnemySelector.ElectIn))]
+    static void DarkEnemySelector_ElectIn_Prefix(object[] __args, ref Characters.Abilities.Darks.DarkAbilityConstructor[] ____constructors)
+    {
+        if (ChzzkGameMode.ForceNextDarkEnemy)
+        {
+            foreach (var arg in __args)
+            {
+                if (arg is System.Collections.Generic.ICollection<Characters.Character> candidates)
+                {
+                    foreach (Characters.Character c in candidates)
+                    {
+                        if (c.type == Characters.Character.Type.TrashMob &&
+                            c.key != Characters.Key.Hound &&
+                            c.key != Characters.Key.SpiritInFlask &&
+                            c.key != Characters.Key.UnstableFlask &&
+                            c.key != Characters.Key.UnstableFlasksSpirit &&
+                            c.key != Characters.Key.Ent &&
+                            c.key != Characters.Key.CannonSpecialist &&
+                            c.key != Characters.Key.GiantMushroomEnt &&
+                            c.key != Characters.Key.CarleonRecruitInCannon &&
+                            c.key != Characters.Key.CarleonRecruit &&
+                            c.key != Characters.Key.Unspecified)
+                        {
+                            ____constructors[Singletons.Singleton<Hardmode.HardmodeManager>.Instance.currentLevel].Provide(c);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public static async Task StartChzzk(ChzzkGameMode gameModeHandler, string channelId)
     {
         var go = new GameObject("ChatIntegrationHost");

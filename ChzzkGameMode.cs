@@ -82,9 +82,12 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private bool _onCooldown = false;
 
+	private float _lastCooldownMessageTime = 0f;
+
 	private System.Random _random = new System.Random();
 
 	public static bool ForceNextDarkEnemy = false;
+	public static Map _darkEnemyTargetMap = null;
 
 	private Map _lastMap;
 
@@ -101,6 +104,8 @@ public class ChzzkGameMode : MonoBehaviour
 	private float _voteTimer;
 
 	private float _voteAutoTimer;
+
+	private float _chaosTimer;
 
 	private HashSet<string> _votedUsers = new HashSet<string>();
 
@@ -130,8 +135,6 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private HashSet<string> FoodCommands => GetCommands(Plugin.CmdFoodString.Value);
 
-	private HashSet<string> FindNpcCommands => GetCommands(Plugin.CmdFindNpcString.Value);
-
 	private HashSet<string> BoneCommands => GetCommands(Plugin.CmdBoneString.Value);
 
 	private HashSet<string> GoldCommands => GetCommands(Plugin.CmdGoldString.Value);
@@ -141,6 +144,8 @@ public class ChzzkGameMode : MonoBehaviour
 	private HashSet<string> QuintessenceCommands => GetCommands(Plugin.CmdQuintessenceString.Value);
 
 	private HashSet<string> FragmentCommands => GetCommands(Plugin.CmdFragmentString.Value);
+
+	private HashSet<string> DefenseCommands => GetCommands(Plugin.CmdDefenseString.Value);
 
 	private HashSet<string> RandomStatCommands => GetCommands(Plugin.CmdRandomStatString.Value);
 
@@ -208,10 +213,19 @@ public class ChzzkGameMode : MonoBehaviour
 			}
 			if (ForceNextDarkEnemy)
 			{
-				ForceNextDarkEnemy = false;
-				Debug.Log((object)"[ChzzkGameMode] 다음 맵 커스텀 몬스터 강화 적용 완료");
-				ShowFloatingText("강화된 몬스터들이 등장합니다!");
-				((MonoBehaviour)this).StartCoroutine(ApplyCustomDarkEnemyRoutine());
+				if (_darkEnemyTargetMap == null)
+				{
+					// 지금 막 진입한 이 맵이 타겟 맵
+					_darkEnemyTargetMap = Map.Instance;
+					Debug.Log((object)"[ChzzkGameMode] 다음 맵 커스텀 몬스터 강화 적용 완료 (타겟 맵 지정)");
+					ShowFloatingText("어둠의 기운이 다음 맵을 뒤덮습니다... (검은 적 등장!)");
+				}
+				else if ((UnityEngine.Object)(object)_darkEnemyTargetMap != (UnityEngine.Object)(object)Map.Instance)
+				{
+					// 타겟 맵을 지나 다음 맵으로 넘어왔으므로 효과 종료
+					ForceNextDarkEnemy = false;
+					_darkEnemyTargetMap = null;
+				}
 			}
 		}
 		if (Plugin.EnableVote.Value)
@@ -234,6 +248,27 @@ public class ChzzkGameMode : MonoBehaviour
 				}
 			}
 		}
+
+		if (Plugin.EnableChaosMode != null && Plugin.EnableChaosMode.Value)
+		{
+			if (Plugin.ChaosIntervalSeconds != null)
+			{
+				_chaosTimer += Time.unscaledDeltaTime;
+				if (_chaosTimer >= Plugin.ChaosIntervalSeconds.Value)
+				{
+					_chaosTimer = 0f;
+					try
+					{
+						TriggerRandomChaosCommand();
+					}
+					catch (Exception ex)
+					{
+						Debug.LogError($"[ChaosMode] 오류: {ex}");
+					}
+				}
+			}
+		}
+
 		if (_onCooldown)
 		{
 			_cooldownTimer -= Time.unscaledDeltaTime;
@@ -262,7 +297,11 @@ public class ChzzkGameMode : MonoBehaviour
 			string command = result3.command;
 			if (!result3.isStreamer && _onCooldown)
 			{
-				ShowFloatingText($"명령어 쿨타임.. ({_cooldownTimer:F1}초 남음)");
+				if (Time.unscaledTime - _lastCooldownMessageTime > 1f)
+				{
+					_lastCooldownMessageTime = Time.unscaledTime;
+					ShowFloatingText($"명령어 쿨타임.. ({_cooldownTimer:F1}초 남음)");
+				}
 				continue;
 			}
 			if (!result3.isStreamer)
@@ -308,9 +347,9 @@ public class ChzzkGameMode : MonoBehaviour
 				{
 					((UnityEngine.MonoBehaviour)this).StartCoroutine(DoFragmentCoroutine(nickname));
 				}
-				else if (FindNpcCommands.Contains(command))
+				else if (DefenseCommands.Contains(command) && Plugin.AllowDefense.Value)
 				{
-					DoFindNPC(nickname);
+					DoDefense(nickname);
 				}
 				else if (BuffCommands.Contains(command) && Plugin.AllowBuffCurse.Value)
 				{
@@ -350,6 +389,23 @@ public class ChzzkGameMode : MonoBehaviour
 				Debug.LogError((object)$"[ChzzkGameMode] 커맨드 실행 오류: {arg2}");
 			}
 		}
+	}
+
+	private void TriggerRandomChaosCommand()
+	{
+		List<Action<string>> chaosActions = new List<Action<string>>()
+		{
+			(n) => DoHeal(n),
+			(n) => DoBuffOrCurse(n),
+			(n) => { ((UnityEngine.MonoBehaviour)this).StartCoroutine(DoItemCoroutine(n)); },
+			(n) => { ((UnityEngine.MonoBehaviour)this).StartCoroutine(DoSkullCoroutine(n)); },
+			(n) => DoSynergy(n),
+			(n) => DoOmen(n),
+			(n) => DoBoss(n),
+			(n) => DoDarkAbility(n),
+			(n) => DoRandomStat(n)
+		};
+		chaosActions[_random.Next(chaosActions.Count)]("$CHAOS$");
 	}
 
 	private void OnGUI()
@@ -444,6 +500,11 @@ public class ChzzkGameMode : MonoBehaviour
 		GUI.Label(rect, text, style);
 	}
 
+	private bool IsValidCommand(string text)
+	{
+		return HealCommands.Contains(text) || BuffCommands.Contains(text) || ItemCommands.Contains(text) || SkullCommands.Contains(text) || SynergyCommands.Contains(text) || OmenCommands.Contains(text) || BossCommands.Contains(text) || DarkCommands.Contains(text) || RandomCommands.Contains(text) || RandomStatCommands.Contains(text) || NpcCommands.Contains(text) || FoodCommands.Contains(text) || BoneCommands.Contains(text) || GoldCommands.Contains(text) || DarkQuartzCommands.Contains(text) || QuintessenceCommands.Contains(text) || FragmentCommands.Contains(text) || DefenseCommands.Contains(text);
+	}
+
 	public void OnChatMessage(string nickname, string message)
 	{
 		if (string.IsNullOrWhiteSpace(message))
@@ -452,38 +513,43 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 		string text = message.Trim().ToLower();
 		nickname = (string.IsNullOrEmpty(nickname) ? "익명" : nickname);
+		
+		bool isCommand = Plugin.EnableChatCommands != null && Plugin.EnableChatCommands.Value && IsValidCommand(text);
+
 		if (_voteState == VoteState.Voting && int.TryParse(text.Replace("!", ""), out var result) && result >= 1 && result <= _currentVoteOptions.Count && !_votedUsers.Contains(nickname))
 		{
 			_votedUsers.Add(nickname);
 			_currentVoteOptions[result - 1].Votes++;
 		}
-		else if (nickname == Plugin.StreamerNickname.Value)
+		else if (isCommand)
 		{
-			if (Plugin.AllowStreamerCommand.Value)
+			if (nickname == Plugin.StreamerNickname.Value)
 			{
-				if (_streamerUsedCommandInThisMap)
+				if (Plugin.AllowStreamerCommand.Value)
 				{
-					ShowFloatingText("스트리머는 이번 맵에서 이미 명령어를 사용했습니다!");
-					return;
+					if (_streamerUsedCommandInThisMap)
+					{
+						ShowFloatingText("스트리머는 이번 맵에서 이미 명령어를 사용했습니다!");
+						return;
+					}
+					_streamerUsedCommandInThisMap = true;
+					_commandQueue.Enqueue(new CommandInfo
+					{
+						nickname = nickname,
+						command = text,
+						isStreamer = true
+					});
 				}
-				_streamerUsedCommandInThisMap = true;
+			}
+			else
+			{
 				_commandQueue.Enqueue(new CommandInfo
 				{
 					nickname = nickname,
 					command = text,
-					isStreamer = true
+					isStreamer = false
 				});
 			}
-		}
-
-		else if (HealCommands.Contains(text) || BuffCommands.Contains(text) || ItemCommands.Contains(text) || SkullCommands.Contains(text) || SynergyCommands.Contains(text) || OmenCommands.Contains(text) || BossCommands.Contains(text) || DarkCommands.Contains(text) || RandomCommands.Contains(text) || RandomStatCommands.Contains(text) || NpcCommands.Contains(text) || FoodCommands.Contains(text) || BoneCommands.Contains(text) || GoldCommands.Contains(text) || DarkQuartzCommands.Contains(text) || QuintessenceCommands.Contains(text) || FindNpcCommands.Contains(text) || FragmentCommands.Contains(text))
-		{
-			_commandQueue.Enqueue(new CommandInfo
-			{
-				nickname = nickname,
-				command = text,
-				isStreamer = false
-			});
 		}
 		else
 		{
@@ -615,17 +681,16 @@ public class ChzzkGameMode : MonoBehaviour
 		{
 			return;
 		}
-		int num = _random.Next(50, 150);
 		Service service = GetService();
 		if (service != null)
 		{
 			LevelManager levelManager = service.levelManager;
 			if (levelManager != null)
 			{
-				levelManager.DropCurrency(GameData.Currency.Type.DarkQuartz, num, 10, ((Component)player).transform.position + Vector3.up * 1.5f);
+				levelManager.DropCurrency(GameData.Currency.Type.DarkQuartz, 1, 1, ((Component)player).transform.position + Vector3.up * 1.5f);
 			}
 		}
-		ShowFloatingText($"{nickname}님이 마석 {num}개를 떨어뜨렸습니다!");
+		ShowFloatingText($"{nickname}님이 검은마석 1개를 떨어뜨렸습니다!");
 	}
 
 	private void DoFood(string nickname)
@@ -700,43 +765,6 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 	}
 
-	private void DoFindNPC(string nickname)
-	{
-		//IL_00cc: Unknown result type (might be due to invalid IL or missing references)
-		try
-		{
-			MonoBehaviour[] array = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>();
-			HashSet<string> hashSet = new HashSet<string>();
-			MonoBehaviour[] array2 = array;
-			foreach (MonoBehaviour val in array2)
-			{
-				string name = ((object)val).GetType().Name;
-				if (name.IndexOf("NPC", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("Interact", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("Chest", StringComparison.OrdinalIgnoreCase) >= 0)
-				{
-					GameObject gameObject = ((Component)val).gameObject;
-					string text = ((UnityEngine.Object)gameObject).name;
-					Transform parent = gameObject.transform.parent;
-					while ((UnityEngine.Object)(object)parent != (UnityEngine.Object)null)
-					{
-						text = ((UnityEngine.Object)parent).name + "/" + text;
-						parent = parent.parent;
-					}
-					string text2 = $"[FindNPC] Type: {name}, Path: {text}, Pos: {gameObject.transform.position}";
-					if (hashSet.Add(text2))
-					{
-						Debug.Log((object)text2);
-					}
-				}
-			}
-			ShowFloatingText(nickname + "님, 맵의 NPC/상자 정보를 로그창에 기록했습니다!");
-			Debug.Log((object)$"[FindNPC] 총 {hashSet.Count}개의 관련 오브젝트를 찾았습니다.");
-		}
-		catch (Exception arg)
-		{
-			Debug.LogError((object)$"[FindNPC] 에러: {arg}");
-			ShowFloatingText("NPC 찾기 중 에러가 발생했습니다.");
-		}
-	}
 
 	private IEnumerator DoDonationItemCoroutine(string nickname)
 	{
@@ -955,45 +983,73 @@ public class ChzzkGameMode : MonoBehaviour
 		try
 		{
 			Type type = ((object)weapon).GetType();
-			PropertyInfo propertyInfo = type.GetProperty("weapons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? type.GetProperty("nextWeapons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 			FieldInfo fieldInfo = type.GetField("weapons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? type.GetField("_weapons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-			IEnumerable enumerable = null;
-			if (propertyInfo != null)
+			if (fieldInfo != null)
 			{
-				enumerable = propertyInfo.GetValue(weapon) as IEnumerable;
-			}
-			else if (fieldInfo != null)
-			{
-				enumerable = fieldInfo.GetValue(weapon) as IEnumerable;
-			}
-			if (enumerable != null)
-			{
-				Weapon polymorphOrCurrent = weapon.polymorphOrCurrent;
-				foreach (object item in enumerable)
+				Array arr = fieldInfo.GetValue(weapon) as Array;
+				if (arr != null)
 				{
-					Weapon val = (Weapon)((item is Weapon) ? item : null);
-					if ((UnityEngine.Object)(object)val != (UnityEngine.Object)null && (UnityEngine.Object)(object)val != (UnityEngine.Object)(object)polymorphOrCurrent)
+					Weapon polymorphOrCurrent = weapon.polymorphOrCurrent;
+					Weapon subSkull = null;
+					for (int i = 0; i < arr.Length; i++)
 					{
-						MethodInfo methodInfo = type.GetMethod("Remove", new Type[1] { typeof(Weapon) }) ?? type.GetMethod("ForceDrop", new Type[1] { typeof(Weapon) }) ?? type.GetMethod("Drop", new Type[1] { typeof(Weapon) }) ?? type.GetMethod("Discard", new Type[1] { typeof(Weapon) }) ?? type.GetMethod("Lose", new Type[1] { typeof(Weapon) });
-						if (methodInfo != null)
+						Weapon val = (Weapon)arr.GetValue(i);
+						if ((UnityEngine.Object)(object)val != (UnityEngine.Object)null && (UnityEngine.Object)(object)val != (UnityEngine.Object)(object)polymorphOrCurrent)
 						{
-							methodInfo.Invoke(weapon, new object[1] { val });
-							Debug.Log((object)("[ChzzkGameMode] Successfully dropped sub-skull via " + methodInfo.Name));
-							return true;
+							subSkull = val;
+							break;
 						}
-						MethodInfo method = ((object)val).GetType().GetMethod("Drop", BindingFlags.Instance | BindingFlags.Public);
-						if (method != null)
+					}
+					if (subSkull != null)
+					{
+						// CharacterAnimationController.animations 리스트에서 삭제할 스컬의 애니메이션 미리 제거
+						if (player.animationController != null)
 						{
-							method.Invoke(val, null);
-							Debug.Log((object)"[ChzzkGameMode] Successfully dropped sub-skull via Weapon.Drop()");
-							return true;
+							FieldInfo animsField = player.animationController.GetType().GetField("animations", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+							if (animsField != null)
+							{
+								System.Collections.IList anims = animsField.GetValue(player.animationController) as System.Collections.IList;
+								if (anims != null)
+								{
+									CharacterAnimation[] subAnims = ((Component)subSkull).GetComponentsInChildren<CharacterAnimation>(true);
+									foreach (CharacterAnimation a in subAnims)
+									{
+										anims.Remove(a);
+									}
+									// null(또는 파괴된) 레퍼런스들도 싹 정리
+									for (int j = anims.Count - 1; j >= 0; j--)
+									{
+										object animObj = anims[j];
+										if (animObj == null || animObj.Equals(null))
+										{
+											anims.RemoveAt(j);
+										}
+									}
+								}
+							}
 						}
-						UnityEngine.Object.Destroy((UnityEngine.Object)(object)((Component)val).gameObject);
-						Debug.Log((object)"[ChzzkGameMode] Destroyed sub-skull object directly.");
+
+						arr.SetValue(polymorphOrCurrent, 0);
+						for (int i = 1; i < arr.Length; i++)
+						{
+							arr.SetValue(null, i);
+						}
+
+						// ForceEquip이 GetComponentsInChildren을 통해 이 스컬을 다시 찾아내서 
+						// animationController에 등록하는 것을 막기 위해 부모를 해제합니다.
+						((Component)subSkull).transform.SetParent(null);
+
+						MethodInfo forceEquip = type.GetMethod("ForceEquip", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+						if (forceEquip != null)
+						{
+							forceEquip.Invoke(weapon, new object[1] { polymorphOrCurrent });
+						}
+						
+						((Component)subSkull).gameObject.SetActive(false);
+						UnityEngine.Object.Destroy(((Component)subSkull).gameObject);
 						return true;
 					}
 				}
-				Debug.LogWarning((object)"[ChzzkGameMode] Sub-skull not found in weapons list (or only 1 skull equipped).");
 			}
 		}
 		catch (Exception ex)
@@ -1128,6 +1184,23 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 	}
 
+	private void DoDefense(string nickname)
+	{
+		Character player = GetPlayer();
+		if ((UnityEngine.Object)(object)player == (UnityEngine.Object)null) return;
+		try
+		{
+			player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+			{
+				new Value(Category.PercentPoint, Kind.TakingDamage, -0.1)
+			}));
+			ShowFloatingText(nickname + "이(가) 방어력 10% 증가 축복을 내렸어요!");
+		}
+		catch
+		{
+		}
+	}
+
 	private void DoRandomStat(string nickname)
 	{
 		//IL_0111: Unknown result type (might be due to invalid IL or missing references)
@@ -1139,7 +1212,7 @@ public class ChzzkGameMode : MonoBehaviour
 		{
 			return;
 		}
-		Kind[] array = (Kind[])(object)new Kind[7]
+		Kind[] array = (Kind[])(object)new Kind[8]
 		{
 			Kind.AttackDamage,
 			Kind.PhysicalAttackDamage,
@@ -1147,9 +1220,10 @@ public class ChzzkGameMode : MonoBehaviour
 			Kind.AttackSpeed,
 			Kind.MovementSpeed,
 			Kind.CriticalChance,
-			Kind.CriticalDamage
+			Kind.CriticalDamage,
+			Kind.Health
 		};
-		string[] array2 = new string[7] { "모든 공격력", "물리 공격력", "마법 공격력", "공격 속도", "이동 속도", "치명타 확률", "치명타 데미지" };
+		string[] array2 = new string[8] { "모든 공격력", "물리 공격력", "마법 공격력", "공격 속도", "이동 속도", "치명타 확률", "치명타 데미지", "최대 체력" };
 		int num = _random.Next(array.Length);
 		Kind val = array[num];
 		string text = array2[num];
@@ -1159,11 +1233,27 @@ public class ChzzkGameMode : MonoBehaviour
 		string text3 = (flag ? "축복" : "저주");
 		try
 		{
-			player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+			if (val == Kind.Health)
 			{
-				new Value(Category.PercentPoint, val, (double)num2)
-			}));
-			ShowFloatingText(nickname + "이(가) " + text3 + "을 내렸어요! " + text + " 10% " + text2 + "!");
+				double delta = flag ? 30.0 : -30.0;
+				if (!flag && player.health.maximumHealth + delta <= 0)
+				{
+					delta = -(player.health.maximumHealth - 1);
+				}
+				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+				{
+					new Value(Category.Constant, val, delta)
+				}));
+				ShowFloatingText($"{nickname}이(가) {text3}을 내렸어요! {text} {Math.Abs(delta)} {text2}!");
+			}
+			else
+			{
+				player.stat.AttachValues(new Values((Value[])(object)new Value[1]
+				{
+					new Value(Category.PercentPoint, val, (double)num2)
+				}));
+				ShowFloatingText(nickname + "이(가) " + text3 + "을 내렸어요! " + text + " 10% " + text2 + "!");
+			}
 		}
 		catch
 		{
@@ -1755,14 +1845,14 @@ public class ChzzkGameMode : MonoBehaviour
 		    (UnityEngine.Object)(object)Map.Instance.waveContainer == (UnityEngine.Object)null)
 		{
 			ForceNextDarkEnemy = true;
+			_darkEnemyTargetMap = null;
 			ShowFloatingText(nickname + "이(가) 다음 맵을 저주했어요!");
 			yield break;
 		}
 		List<Character> allEnemies = UnityEngine.Resources.FindObjectsOfTypeAll<Character>().ToList();
 		
 		HashSet<string> allowedBosses = new HashSet<string> {
-			"ElderEnt(Hardmode)", "Dark", "Pope",
-			"Dark Crystal Right", "Dark Crystal Left", "First Hero Phase Dark (Sound)",
+			"ElderEnt(Hardmode)", "Dark", "First Hero Phase Dark (Sound)",
 			"FirstHero (1 Phase)", "DarkSkeleton_Phase2", "DarkSkeleton_Phase1",
 			"Emperor_Renewal", "Emperor4"
 		};
@@ -1792,19 +1882,8 @@ public class ChzzkGameMode : MonoBehaviour
 		};
 		
 		int roll = _random.Next(100);
-		Character.Type targetType = Character.Type.TrashMob;
-		HashSet<string> targetAllowedNames = allowedMobs;
-
-		if (roll < 40) 
-		{
-			targetType = Character.Type.Boss;
-			targetAllowedNames = allowedBosses;
-		}
-		else if (roll < 70) 
-		{
-			targetType = Character.Type.Adventurer;
-			targetAllowedNames = allowedAdventurers;
-		}
+		Character.Type targetType = Character.Type.Boss;
+		HashSet<string> targetAllowedNames = allowedBosses;
 
 		Character original = null;
 
@@ -1891,6 +1970,7 @@ public class ChzzkGameMode : MonoBehaviour
 		if ((UnityEngine.Object)(object)bossChar == (UnityEngine.Object)null && (UnityEngine.Object)(object)original == (UnityEngine.Object)null)
 		{
 			ForceNextDarkEnemy = true;
+			_darkEnemyTargetMap = null;
 			ShowFloatingText(nickname + "이(가) 소환할 몬스터가 없어 다음 맵을 저주했어요!");
 			yield break;
 		}
@@ -1926,6 +2006,7 @@ public class ChzzkGameMode : MonoBehaviour
 				try
 				{
 					((Health)bossChar.health).Heal(999999.0, true);
+					((Health)bossChar.health).SetCurrentHealth(((Health)bossChar.health).maximumHealth * 0.5);
 				}
 				catch (Exception ex)
 				{
@@ -1964,14 +2045,8 @@ public class ChzzkGameMode : MonoBehaviour
 
 			
 			ForceNextDarkEnemy = true;
-			if (bossChar.type == Character.Type.TrashMob)
-			{
-				ShowFloatingText(nickname + "이(가) 미니보스(검은 적)를 소환하고 다음 맵을 저주했어요!");
-			}
-			else
-			{
-				ShowFloatingText(nickname + "이(가) 미니보스를 소환하고 다음 맵을 저주했어요!");
-			}
+			_darkEnemyTargetMap = null;
+			ShowFloatingText(nickname + "이(가) 보스를 소환하고 다음 맵을 저주했어요!");
 		}
 		catch (Exception ex)
 		{
@@ -1997,7 +2072,8 @@ public class ChzzkGameMode : MonoBehaviour
 				((Health)fallbackChar.health).Heal(999999.0, true);
 			}
 			ForceNextDarkEnemy = true;
-			ShowFloatingText(nickname + "이(가) 몬스터를 강화하고 다음 맵을 저주했어요!");
+			_darkEnemyTargetMap = null;
+			ShowFloatingText(nickname + "이(가) 기존 적을 강화하고 다음 맵을 저주했어요!");
 		}
 	}
 
@@ -2061,6 +2137,10 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private void ShowFloatingText(string message)
 	{
+		if (message.Contains("$CHAOS$"))
+		{
+			message = "무언가가 일어났습니다!";
+		}
 		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
 		//IL_004f: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0059: Unknown result type (might be due to invalid IL or missing references)
@@ -2098,55 +2178,7 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 	}
 
-	private IEnumerator ApplyCustomDarkEnemyRoutine()
-	{
-		Map map = Map.Instance;
-		HashSet<Character> processed = new HashSet<Character>();
-		while ((UnityEngine.Object)(object)Map.Instance == (UnityEngine.Object)(object)map)
-		{
-			if ((UnityEngine.Object)(object)map.waveContainer != (UnityEngine.Object)null)
-			{
-				List<Character> enemies = map.waveContainer.GetAllEnemies();
-				if (enemies != null)
-				{
-					foreach (Character c in enemies)
-					{
-						if (!((UnityEngine.Object)(object)c != (UnityEngine.Object)null) || processed.Contains(c))
-						{
-							continue;
-						}
-						processed.Add(c);
-						string keyStr = ((object)c.key/*cast due to constrained. prefix*/).ToString();
-						if ((int)c.type == 0 && keyStr != "Hound" && keyStr != "SpiritInFlask" && keyStr != "UnstableFlask" && keyStr != "UnstableFlasksSpirit" && keyStr != "Ent" && keyStr != "CannonSpecialist" && keyStr != "GiantMushroomEnt" && keyStr != "CarleonRecruitInCannon" && keyStr != "CarleonRecruit" && keyStr != "Unspecified")
-						{
-							Transform transform = ((Component)c).transform;
-							transform.localScale *= 1.3f;
-							try
-							{
-								c.stat.AttachValues(new Values((Value[])(object)new Value[1]
-								{
-									new Value(Category.PercentPoint, Kind.Health, 2.0)
-								}));
-								c.stat.AttachValues(new Values((Value[])(object)new Value[1]
-								{
-									new Value(Category.PercentPoint, Kind.AttackDamage, 1.2000000476837158)
-								}));
-							}
-							catch
-							{
-							}
-							SpriteRenderer renderer = ((Component)c).GetComponentInChildren<SpriteRenderer>();
-							if ((UnityEngine.Object)(object)renderer != (UnityEngine.Object)null)
-							{
-								renderer.color = new Color(0.3f, 0f, 0.3f);
-							}
-						}
-					}
-				}
-			}
-			yield return (object)new WaitForSeconds(0.5f);
-		}
-	}
+	// ApplyCustomDarkEnemyRoutine Removed (replaced by DarkEnemySelector patch)
 
 	private void StartVote()
 	{
@@ -2230,6 +2262,60 @@ public class ChzzkGameMode : MonoBehaviour
 				{
 					DoNPC(n);
 				}
+			},
+			new VoteOption
+			{
+				Title = "파편 (랜덤 소환/삭제)",
+				Votes = 0,
+				Action = delegate(string n) { ((UnityEngine.MonoBehaviour)this).StartCoroutine(DoFragmentCoroutine(n)); }
+			},
+			new VoteOption
+			{
+				Title = "뼈 조각 소환",
+				Votes = 0,
+				Action = delegate(string n) { DoBone(n); }
+			},
+			new VoteOption
+			{
+				Title = "골드 지급",
+				Votes = 0,
+				Action = delegate(string n) { DoGold(n); }
+			},
+			new VoteOption
+			{
+				Title = "검은 마석 지급",
+				Votes = 0,
+				Action = delegate(string n) { DoDarkQuartz(n); }
+			},
+			new VoteOption
+			{
+				Title = "정수 소환",
+				Votes = 0,
+				Action = delegate(string n) { ((UnityEngine.MonoBehaviour)this).StartCoroutine(DoQuintessenceCoroutine(n)); }
+			},
+			new VoteOption
+			{
+				Title = "검은 능력 지급",
+				Votes = 0,
+				Action = delegate(string n) { DoDarkAbility(n); }
+			},
+			new VoteOption
+			{
+				Title = "흉조 아이템 드롭",
+				Votes = 0,
+				Action = delegate(string n) { DoOmen(n); }
+			},
+			new VoteOption
+			{
+				Title = "체력 회복",
+				Votes = 0,
+				Action = delegate(string n) { DoHeal(n); }
+			},
+			new VoteOption
+			{
+				Title = "방어력 10% 증가",
+				Votes = 0,
+				Action = delegate(string n) { DoDefense(n); }
 			}
 		};
 		for (int num = 0; num < 3; num++)
