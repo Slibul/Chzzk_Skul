@@ -37,7 +37,7 @@ public class ChzzkGameMode : MonoBehaviour
 
 		private static string saveFilePath => System.IO.Path.Combine(UnityEngine.Application.persistentDataPath, "ChzzkSkul_SavedStats.json");
 
-		public static Dictionary<Characters.Stat.Kind, StatData> SavedStats = new Dictionary<Characters.Stat.Kind, StatData>();
+		public static Dictionary<int, StatData> SavedStats = new Dictionary<int, StatData>();
 
 		public static void Load()
 		{
@@ -46,7 +46,7 @@ public class ChzzkGameMode : MonoBehaviour
 				if (System.IO.File.Exists(saveFilePath))
 				{
 					string json = System.IO.File.ReadAllText(saveFilePath);
-					SavedStats = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<Characters.Stat.Kind, StatData>>(json) ?? new Dictionary<Characters.Stat.Kind, StatData>();
+					SavedStats = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<int, StatData>>(json) ?? new Dictionary<int, StatData>();
 				}
 			}
 			catch (Exception ex)
@@ -69,15 +69,49 @@ public class ChzzkGameMode : MonoBehaviour
 			}
 		}
 
+		public static int KindToInt(Characters.Stat.Kind kind)
+		{
+			if (kind == Characters.Stat.Kind.AttackDamage) return 0;
+			if (kind == Characters.Stat.Kind.PhysicalAttackDamage) return 1;
+			if (kind == Characters.Stat.Kind.MagicAttackDamage) return 2;
+			if (kind == Characters.Stat.Kind.AttackSpeed) return 3;
+			if (kind == Characters.Stat.Kind.MovementSpeed) return 4;
+			if (kind == Characters.Stat.Kind.CriticalChance) return 5;
+			if (kind == Characters.Stat.Kind.CriticalDamage) return 6;
+			if (kind == Characters.Stat.Kind.Health) return 7;
+			if (kind == Characters.Stat.Kind.TakingDamage) return 8;
+			return -1;
+		}
+
+		public static Characters.Stat.Kind IntToKind(int id)
+		{
+			switch (id)
+			{
+				case 0: return Characters.Stat.Kind.AttackDamage;
+				case 1: return Characters.Stat.Kind.PhysicalAttackDamage;
+				case 2: return Characters.Stat.Kind.MagicAttackDamage;
+				case 3: return Characters.Stat.Kind.AttackSpeed;
+				case 4: return Characters.Stat.Kind.MovementSpeed;
+				case 5: return Characters.Stat.Kind.CriticalChance;
+				case 6: return Characters.Stat.Kind.CriticalDamage;
+				case 7: return Characters.Stat.Kind.Health;
+				case 8: return Characters.Stat.Kind.TakingDamage;
+				default: return Characters.Stat.Kind.AttackDamage;
+			}
+		}
+
 		public static void AddStat(Characters.Character player, Characters.Stat.Category category, Characters.Stat.Kind kind, double value)
 		{
-			if (!SavedStats.ContainsKey(kind))
-				SavedStats[kind] = new StatData();
+			int kindInt = KindToInt(kind);
+			if (kindInt == -1) return;
+
+			if (!SavedStats.ContainsKey(kindInt))
+				SavedStats[kindInt] = new StatData();
 
 			if (category == Characters.Stat.Category.PercentPoint)
-				SavedStats[kind].percentPoint += value;
+				SavedStats[kindInt].percentPoint += value;
 			else if (category == Characters.Stat.Category.Constant)
-				SavedStats[kind].constant += value;
+				SavedStats[kindInt].constant += value;
 
 			Save();
 
@@ -95,16 +129,17 @@ public class ChzzkGameMode : MonoBehaviour
 			
 			foreach (var kvp in SavedStats)
 			{
+				Characters.Stat.Kind kind = IntToKind(kvp.Key);
 				if (kvp.Value.percentPoint != 0)
 				{
 					player.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[] {
-						new Characters.Stat.Value(Characters.Stat.Category.PercentPoint, kvp.Key, kvp.Value.percentPoint)
+						new Characters.Stat.Value(Characters.Stat.Category.PercentPoint, kind, kvp.Value.percentPoint)
 					}));
 				}
 				if (kvp.Value.constant != 0)
 				{
 					player.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[] {
-						new Characters.Stat.Value(Characters.Stat.Category.Constant, kvp.Key, kvp.Value.constant)
+						new Characters.Stat.Value(Characters.Stat.Category.Constant, kind, kvp.Value.constant)
 					}));
 				}
 			}
