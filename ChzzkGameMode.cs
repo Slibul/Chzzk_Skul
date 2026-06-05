@@ -2260,11 +2260,6 @@ public class ChzzkGameMode : MonoBehaviour
 								bossChar.ForceToLookAt(((Component)player).transform.position.x);
 								try { aiCtrl.FoundEnemy(); } catch { }
 							}
-
-							if ((UnityEngine.Object)(object)Map.Instance != (UnityEngine.Object)null && (UnityEngine.Object)(object)Map.Instance.waveContainer != (UnityEngine.Object)null)
-							{
-								try { Map.Instance.waveContainer.Attach(bossChar); } catch { }
-							}
 						}
 					}
 				}
