@@ -2189,7 +2189,7 @@ public class ChzzkGameMode : MonoBehaviour
 		{ 
 			"DarkSkeleton_Phase2", 
 			"First Hero Phase Dark", 
-			"Emperor4" 
+			"Emperor_Renewal" 
 		};
 
 		float spawnOffset = -3f;
@@ -2371,7 +2371,7 @@ public class ChzzkGameMode : MonoBehaviour
 		List<Character> allEnemies = UnityEngine.Resources.FindObjectsOfTypeAll<Character>().ToList();
 		
 		HashSet<string> allowedBosses = new HashSet<string> {
-			"ElderEnt(Hardmode)", "Dark", "First Hero Phase Dark (Sound)",
+			"ElderEnt(Hardmode)", "Dark", "First Hero Phase Dark",
 			"FirstHero (1 Phase)", "DarkSkeleton_Phase2", "DarkSkeleton_Phase1",
 			"Emperor_Renewal", "Emperor4"
 		};
