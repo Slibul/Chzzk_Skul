@@ -361,6 +361,12 @@ public class ChzzkGameMode : MonoBehaviour
 			{
 				((MonoBehaviour)this).StartCoroutine(SpawnBossRushBosses());
 			}
+
+			if (_voteState == VoteState.Voting)
+			{
+				EndVote();
+				StartVote();
+			}
 		}
 		string result;
 		while (_pendingChats.TryDequeue(out result))
