@@ -45,6 +45,9 @@ public class ChzzkGameMode : MonoBehaviour
 			public bool IsBossRushActive;
 			public bool ForceNextDarkEnemy;
 			public bool ForceNextOmen;
+			public bool IsScreenEffectActive;
+			public int ScreenEffectType;
+			public float ScreenEffectTimer;
 		}
 
 		public static void Load()
@@ -63,6 +66,9 @@ public class ChzzkGameMode : MonoBehaviour
 							ChzzkGameMode._isBossRushActive = wrapper.IsBossRushActive;
 							ChzzkGameMode._forceNextDarkEnemy = wrapper.ForceNextDarkEnemy;
 							OmenChestPath.ForceNextOmen = wrapper.ForceNextOmen;
+							ChzzkGameMode.IsScreenEffectActive = wrapper.IsScreenEffectActive;
+							ChzzkGameMode._screenEffectType = wrapper.ScreenEffectType;
+							ChzzkGameMode._screenEffectTimer = wrapper.ScreenEffectTimer > 0 ? wrapper.ScreenEffectTimer : 20f;
 						}
 						else
 						{
@@ -90,7 +96,10 @@ public class ChzzkGameMode : MonoBehaviour
 					Stats = SavedStats,
 					IsBossRushActive = ChzzkGameMode._isBossRushActive,
 					ForceNextDarkEnemy = ChzzkGameMode._forceNextDarkEnemy,
-					ForceNextOmen = OmenChestPath.ForceNextOmen
+					ForceNextOmen = OmenChestPath.ForceNextOmen,
+					IsScreenEffectActive = ChzzkGameMode.IsScreenEffectActive,
+					ScreenEffectType = ChzzkGameMode._screenEffectType,
+					ScreenEffectTimer = ChzzkGameMode._screenEffectTimer
 				};
 				string json = Newtonsoft.Json.JsonConvert.SerializeObject(wrapper);
 				System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(saveFilePath));
@@ -184,11 +193,11 @@ public class ChzzkGameMode : MonoBehaviour
 			{
 				SavedStats.Clear();
 			}
-			ChzzkGameMode._isBossRushActive = false;
 			ChzzkGameMode._forceNextDarkEnemy = false;
 			OmenChestPath.ForceNextOmen = false;
+			ChzzkGameMode.IsScreenEffectActive = false;
 			Save();
-			UnityEngine.Debug.Log("[ChzzkStatManager] Cleared saved stats because a new run started.");
+			UnityEngine.Debug.Log("[ChzzkStatManager] Cleared saved stats because a new run started. (Boss Rush remains untouched)");
 		}
 	}
 
@@ -353,8 +362,8 @@ public class ChzzkGameMode : MonoBehaviour
 	private Character _lastPlayerForStats;
 
 	public static bool IsScreenEffectActive = false;
-	private int _screenEffectType = 0;
-	private float _screenEffectTimer = 0f;
+	public static int _screenEffectType = 0;
+	public static float _screenEffectTimer = 0f;
 	private Characters.Abilities.Debuffs.ReverseHorizontalInput _reverseAbility = null;
 
 	private void LateUpdate()
@@ -375,6 +384,7 @@ public class ChzzkGameMode : MonoBehaviour
 					if ((UnityEngine.Object)(object)p != (UnityEngine.Object)null) p.ability.Remove(_reverseAbility);
 					_reverseAbility = null;
 				}
+				ChzzkStatManager.Save();
 			}
 			else
 			{
@@ -391,6 +401,15 @@ public class ChzzkGameMode : MonoBehaviour
 					else if (_screenEffectType == 2)
 					{
 						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, -15f);
+					}
+				}
+				if (_screenEffectType == 3 && _reverseAbility == null)
+				{
+					Character p = GetPlayer();
+					if ((UnityEngine.Object)(object)p != (UnityEngine.Object)null)
+					{
+						_reverseAbility = new Characters.Abilities.Debuffs.ReverseHorizontalInput();
+						p.ability.Add(_reverseAbility);
 					}
 				}
 			}
@@ -2158,6 +2177,7 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 
 		ShowFloatingText(nickname + "이(가) 랜덤 화면 효과(" + effectName + ")를 발동했어요! (20초)");
+		ChzzkStatManager.Save();
 	}
 
 	private IEnumerator SpawnBossRushBosses()
