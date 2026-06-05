@@ -1942,15 +1942,36 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private AudioSource _bossRushAudioSource = null;
 
+	private string GetBossRushModeName()
+	{
+		string bossRushPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.mp3");
+		string godRushPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "godrush_bgm.mp3");
+		
+		if (!System.IO.File.Exists(bossRushPath) && System.IO.File.Exists(godRushPath))
+		{
+			return "신의 심판";
+		}
+		return "보스 러쉬";
+	}
+
 	private IEnumerator BossRushRoutine(string nickname)
 	{
 		IsBossRushActive = true;
-		ShowFloatingText(nickname + "이(가) 보스 러쉬 모드를 발동했어요!");
+		string modeName = GetBossRushModeName();
+		ShowFloatingText(nickname + "이(가) " + modeName + " 모드를 발동했어요!");
 		
-		string bgmPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.wav");
+		string bgmPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.mp3");
 		if (!System.IO.File.Exists(bgmPath))
 		{
-			bgmPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.mp3");
+			string godRushPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "godrush_bgm.mp3");
+			if (System.IO.File.Exists(godRushPath))
+			{
+				bgmPath = godRushPath;
+			}
+			else
+			{
+				bgmPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.wav");
+			}
 		}
 
 		AudioClip clip = null;
@@ -2009,7 +2030,7 @@ public class ChzzkGameMode : MonoBehaviour
 		}
 		
 		IsBossRushActive = false;
-		ShowFloatingText("보스 러쉬 모드가 종료되었습니다.");
+		ShowFloatingText(modeName + " 모드가 종료되었습니다.");
 		_bossRushCoroutine = null;
 	}
 
@@ -2649,7 +2670,7 @@ public class ChzzkGameMode : MonoBehaviour
 			},
 			new VoteOption
 			{
-				Title = "보스 러쉬 모드 (3분)",
+				Title = GetBossRushModeName() + " 모드",
 				Votes = 0,
 				Action = delegate(string n) { DoBossRush(n); }
 			}
