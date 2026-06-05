@@ -2234,7 +2234,16 @@ public class ChzzkGameMode : MonoBehaviour
 							((Component)bossChar).gameObject.SetActive(true);
 							if (bossChar.attach != null) bossChar.attach.SetActive(true);
 
-							// 보스 러쉬이므로 풀피 소환 (원할경우 50%로 깎는 로직 추가 가능)
+							// 최대 체력을 30%로 낮춤 (-70% 포인트)
+							try
+							{
+								bossChar.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[]
+								{
+									new Characters.Stat.Value(Characters.Stat.Category.PercentPoint, Characters.Stat.Kind.Health, -0.7)
+								}));
+							} catch { }
+
+							// 보스 러쉬이므로 풀피 소환
 							if (bossChar.health != null)
 							{
 								try
@@ -2500,13 +2509,21 @@ public class ChzzkGameMode : MonoBehaviour
 			{
 				((Component)bossChar).transform.localScale = ((Component)original).transform.localScale * 1.8f;
 			}
+			// 최대 체력을 30%로 낮춤 (-70% 포인트)
+			try
+			{
+				bossChar.stat.AttachValues(new Characters.Stat.Values(new Characters.Stat.Value[]
+				{
+					new Characters.Stat.Value(Characters.Stat.Category.PercentPoint, Characters.Stat.Kind.Health, -0.7)
+				}));
+			} catch { }
+
 			// 체력 풀 회복
 			if (bossChar.health != null)
 			{
 				try
 				{
 					((Health)bossChar.health).Heal(999999.0, true);
-					((Health)bossChar.health).SetCurrentHealth(((Health)bossChar.health).maximumHealth * 0.5);
 				}
 				catch (Exception ex)
 				{
