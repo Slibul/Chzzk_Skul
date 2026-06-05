@@ -318,6 +318,11 @@ public class ChzzkGameMode : MonoBehaviour
 		{
 			_currentMap = instance;
 			_streamerUsedCommandInThisMap = false;
+
+			if (IsBossRushActive)
+			{
+				((MonoBehaviour)this).StartCoroutine(SpawnBossRushBosses());
+			}
 		}
 		string result;
 		while (_pendingChats.TryDequeue(out result))
@@ -552,6 +557,14 @@ public class ChzzkGameMode : MonoBehaviour
 			(n) => DoDarkAbility(n),
 			(n) => DoRandomStat(n)
 		};
+		chaosActions.Add(delegate(string n)
+		{
+			DoDropOmen(n);
+		});
+		chaosActions.Add(delegate(string n)
+		{
+			DoBossRush(n);
+		});
 		chaosActions[_random.Next(chaosActions.Count)]("$CHAOS$");
 	}
 
@@ -1909,6 +1922,177 @@ public class ChzzkGameMode : MonoBehaviour
 		ShowFloatingText(nickname + "이(가) 다음 상자를 흉조 상자로 바꿨어요!");
 	}
 
+	private void DoDropOmen(string nickname)
+	{
+		OmenChestPath.ForceNextOmen = true;
+		ShowFloatingText(nickname + "이(가) 오멘 상자 드롭을 예약했어요!");
+	}
+
+	public static bool IsBossRushActive = false;
+	private Coroutine _bossRushCoroutine = null;
+
+	private void DoBossRush(string nickname)
+	{
+		if (_bossRushCoroutine != null)
+		{
+			((MonoBehaviour)this).StopCoroutine(_bossRushCoroutine);
+		}
+		_bossRushCoroutine = ((MonoBehaviour)this).StartCoroutine(BossRushRoutine(nickname));
+	}
+
+	private AudioSource _bossRushAudioSource = null;
+
+	private IEnumerator BossRushRoutine(string nickname)
+	{
+		IsBossRushActive = true;
+		ShowFloatingText(nickname + "이(가) 보스 러쉬 모드를 발동했어요!");
+		
+		string bgmPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.wav");
+		if (!System.IO.File.Exists(bgmPath))
+		{
+			bgmPath = System.IO.Path.Combine(BepInEx.Paths.PluginPath, "ChzzkSkul", "bossrush_bgm.mp3");
+		}
+
+		AudioClip clip = null;
+		if (System.IO.File.Exists(bgmPath))
+		{
+			string uri = "file:///" + bgmPath.Replace("\\", "/");
+			using (UnityEngine.Networking.UnityWebRequest uwr = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip(uri, UnityEngine.AudioType.UNKNOWN))
+			{
+				var handle = uwr.SendWebRequest();
+				while (!handle.isDone) yield return null;
+				if (uwr.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+				{
+					clip = UnityEngine.Networking.DownloadHandlerAudioClip.GetContent(uwr);
+				}
+				else
+				{
+					UnityEngine.Debug.LogError("[ChzzkGameMode] Failed to load BGM: " + uwr.error);
+				}
+			}
+		}
+
+		if (clip != null)
+		{
+			if (_bossRushAudioSource == null)
+			{
+				_bossRushAudioSource = ((Component)this).gameObject.AddComponent<AudioSource>();
+			}
+			_bossRushAudioSource.clip = clip;
+			_bossRushAudioSource.loop = false;
+			_bossRushAudioSource.Play();
+
+			var bgmField = typeof(SoundManager).GetField("_backgroundMusic", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+			AudioSource gameBgm = null;
+			bool wasMuted = false;
+			if ((UnityEngine.Object)(object)Singletons.Singleton<SoundManager>.Instance != (UnityEngine.Object)null && bgmField != null)
+			{
+				gameBgm = (AudioSource)bgmField.GetValue(Singletons.Singleton<SoundManager>.Instance);
+				if (gameBgm != null)
+				{
+					wasMuted = gameBgm.mute;
+					gameBgm.mute = true;
+				}
+			}
+
+			yield return new WaitForSecondsRealtime(clip.length);
+
+			if (gameBgm != null)
+			{
+				gameBgm.mute = wasMuted;
+			}
+		}
+		else
+		{
+			UnityEngine.Debug.LogWarning("[ChzzkGameMode] bossrush_bgm.wav or .mp3 not found. Defaulting to 180s.");
+			yield return new WaitForSecondsRealtime(180f);
+		}
+		
+		IsBossRushActive = false;
+		ShowFloatingText("보스 러쉬 모드가 종료되었습니다.");
+		_bossRushCoroutine = null;
+	}
+
+	private IEnumerator SpawnBossRushBosses()
+	{
+		Character player = GetPlayer();
+		if ((UnityEngine.Object)(object)player == (UnityEngine.Object)null) yield break;
+
+		string[] bossKeys = new string[] { 
+			"DarkSkeleton_Phase2", 
+			"First Hero Phase Dark (Sound)", 
+			"Emperor_Renewal" 
+		};
+
+		foreach (string bossName in bossKeys)
+		{
+			string foundKey = null;
+			foreach (var locator in UnityEngine.AddressableAssets.Addressables.ResourceLocators)
+			{
+				foreach (object keyObj in locator.Keys)
+				{
+					string k = keyObj.ToString();
+					if (k.EndsWith(".prefab") && k.Contains("Enemies") && !k.Contains("effect") && !k.Contains("ui"))
+					{
+						string fileName = System.IO.Path.GetFileNameWithoutExtension(k);
+						if (fileName == bossName)
+						{
+							foundKey = k;
+							break;
+						}
+					}
+				}
+				if (foundKey != null) break;
+			}
+
+			if (foundKey != null)
+			{
+				var handle = UnityEngine.AddressableAssets.Addressables.InstantiateAsync(foundKey);
+				yield return handle;
+				
+				if (handle.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded)
+				{
+					GameObject loadedObj = handle.Result;
+					if (loadedObj != null)
+					{
+						Character bossChar = loadedObj.GetComponent<Character>();
+						if ((UnityEngine.Object)(object)bossChar != (UnityEngine.Object)null)
+						{
+							Vector3 spawnPos = ((Component)player).transform.position + Vector3.right * ((_random.Next(2) == 0 ? 1f : -1f) * 3f) + Vector3.up * 0.5f;
+							loadedObj.transform.position = spawnPos;
+							
+							((Component)bossChar).gameObject.SetActive(true);
+							if (bossChar.attach != null) bossChar.attach.SetActive(true);
+
+							// 보스 러쉬이므로 풀피 소환 (원할경우 50%로 깎는 로직 추가 가능)
+							if (bossChar.health != null)
+							{
+								try
+								{
+									((Health)bossChar.health).Heal(999999.0, true);
+								}
+								catch { }
+							}
+
+							Characters.AI.AIController aiCtrl = ((Component)bossChar).GetComponentInChildren<Characters.AI.AIController>();
+							if ((UnityEngine.Object)(object)aiCtrl != (UnityEngine.Object)null)
+							{
+								aiCtrl.target = player;
+								bossChar.ForceToLookAt(((Component)player).transform.position.x);
+								try { aiCtrl.FoundEnemy(); } catch { }
+							}
+
+							if ((UnityEngine.Object)(object)Map.Instance != (UnityEngine.Object)null && (UnityEngine.Object)(object)Map.Instance.waveContainer != (UnityEngine.Object)null)
+							{
+								try { Map.Instance.waveContainer.Attach(bossChar); } catch { }
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	private void DoDarkAbility(string nickname)
 	{
 		//IL_01af: Unknown result type (might be due to invalid IL or missing references)
@@ -2462,6 +2646,12 @@ public class ChzzkGameMode : MonoBehaviour
 				Title = "방어력 (랜덤 증감)",
 				Votes = 0,
 				Action = delegate(string n) { DoDefense(n); }
+			},
+			new VoteOption
+			{
+				Title = "보스 러쉬 모드 (3분)",
+				Votes = 0,
+				Action = delegate(string n) { DoBossRush(n); }
 			}
 		};
 		for (int num = 0; num < 3; num++)
