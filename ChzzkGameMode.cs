@@ -311,6 +311,44 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private Character _lastPlayerForStats;
 
+	public static bool IsScreenEffectActive = false;
+	private int _screenEffectType = 0;
+	private float _screenEffectTimer = 0f;
+
+	private void LateUpdate()
+	{
+		if (IsScreenEffectActive)
+		{
+			_screenEffectTimer -= Time.unscaledDeltaTime;
+			if (_screenEffectTimer <= 0f)
+			{
+				IsScreenEffectActive = false;
+				if ((UnityEngine.Object)(object)Camera.main != (UnityEngine.Object)null)
+				{
+					Camera.main.transform.localEulerAngles = Vector3.zero;
+				}
+			}
+			else
+			{
+				if ((UnityEngine.Object)(object)Camera.main != (UnityEngine.Object)null)
+				{
+					if (_screenEffectType == 0)
+					{
+						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, 180f);
+					}
+					else if (_screenEffectType == 1)
+					{
+						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, 15f * Mathf.Sin(Time.unscaledTime * 4f));
+					}
+					else if (_screenEffectType == 2)
+					{
+						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, Time.unscaledTime * 180f);
+					}
+				}
+			}
+		}
+	}
+
 	private void Update()
 	{
 		Map instance = Map.Instance;
@@ -565,6 +603,10 @@ public class ChzzkGameMode : MonoBehaviour
 		{
 			DoBossRush(n);
 		});
+		chaosActions.Add(delegate(string n)
+		{
+			DoRandomScreenEffect(n);
+		});
 		chaosActions[_random.Next(chaosActions.Count)]("$CHAOS$");
 	}
 
@@ -631,12 +673,12 @@ public class ChzzkGameMode : MonoBehaviour
 			float num2 = 50f;
 			float num3 = 100f;
 			string text2 = $"<color=#FFFF00>[시청자 투표 진행중!] 남은 시간: {_voteTimer:F1}초</color>\n<size=22>채팅창에 번호(1, 2, 3)를 입력해 투표하세요!</size>";
-			DrawOutlineText(new Rect(num2, num3, 600f, 100f), text2, val6, val2);
+			GUI.Label(new Rect(num2, num3, 600f, 100f), text2, val6);
 			num3 += 80f;
 			for (int i = 0; i < _currentVoteOptions.Count; i++)
 			{
 				string text3 = $"{i + 1}. {_currentVoteOptions[i].Title}  <color=#AAAAFF>[{_currentVoteOptions[i].Votes}표]</color>";
-				DrawOutlineText(new Rect(num2, num3, 600f, 50f), text3, val6, val2);
+				GUI.Label(new Rect(num2, num3, 600f, 50f), text3, val6);
 				num3 += 40f;
 			}
 		}
@@ -2034,6 +2076,20 @@ public class ChzzkGameMode : MonoBehaviour
 		_bossRushCoroutine = null;
 	}
 
+	private void DoRandomScreenEffect(string nickname)
+	{
+		_screenEffectType = _random.Next(3);
+		_screenEffectTimer = 20f;
+		IsScreenEffectActive = true;
+
+		string effectName = "";
+		if (_screenEffectType == 0) effectName = "화면 뒤집기";
+		else if (_screenEffectType == 1) effectName = "화면 흔들기";
+		else effectName = "화면 빙글빙글";
+
+		ShowFloatingText(nickname + "이(가) 랜덤 화면 효과(" + effectName + ")를 발동했어요! (20초)");
+	}
+
 	private IEnumerator SpawnBossRushBosses()
 	{
 		Character player = GetPlayer();
@@ -2673,6 +2729,12 @@ public class ChzzkGameMode : MonoBehaviour
 				Title = GetBossRushModeName() + " 모드",
 				Votes = 0,
 				Action = delegate(string n) { DoBossRush(n); }
+			},
+			new VoteOption
+			{
+				Title = "랜덤 화면 효과 (20초)",
+				Votes = 0,
+				Action = delegate(string n) { DoRandomScreenEffect(n); }
 			}
 		};
 		for (int num = 0; num < 3; num++)
