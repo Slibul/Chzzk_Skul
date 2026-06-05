@@ -14,7 +14,12 @@ public class OmenChestPath
     /// true일 때 다음 HardmodeChest를 흉조 상자로 강제 변환합니다.
     /// !omen 커맨드에서 활성화되며, 한 번 변환 후 자동으로 false로 초기화됩니다.
     /// </summary>
-    public static bool ForceNextOmen { get; set; } = false;
+    private static bool _forceNextOmen = false;
+    public static bool ForceNextOmen
+    {
+        get => _forceNextOmen;
+        set { _forceNextOmen = value; ChzzkGameMode.ChzzkStatManager.Save(); }
+    }
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(HardmodeChest), nameof(HardmodeChest.TryToChangeOmenChest))]

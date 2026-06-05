@@ -39,6 +39,14 @@ public class ChzzkGameMode : MonoBehaviour
 
 		public static Dictionary<int, StatData> SavedStats = new Dictionary<int, StatData>();
 
+		public class SaveWrapper
+		{
+			public Dictionary<int, StatData> Stats;
+			public bool IsBossRushActive;
+			public bool ForceNextDarkEnemy;
+			public bool ForceNextOmen;
+		}
+
 		public static void Load()
 		{
 			try
@@ -46,7 +54,25 @@ public class ChzzkGameMode : MonoBehaviour
 				if (System.IO.File.Exists(saveFilePath))
 				{
 					string json = System.IO.File.ReadAllText(saveFilePath);
-					SavedStats = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<int, StatData>>(json) ?? new Dictionary<int, StatData>();
+					try
+					{
+						var wrapper = Newtonsoft.Json.JsonConvert.DeserializeObject<SaveWrapper>(json);
+						if (wrapper != null && wrapper.Stats != null)
+						{
+							SavedStats = wrapper.Stats;
+							ChzzkGameMode._isBossRushActive = wrapper.IsBossRushActive;
+							ChzzkGameMode._forceNextDarkEnemy = wrapper.ForceNextDarkEnemy;
+							OmenChestPath.ForceNextOmen = wrapper.ForceNextOmen;
+						}
+						else
+						{
+							SavedStats = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<int, StatData>>(json) ?? new Dictionary<int, StatData>();
+						}
+					}
+					catch
+					{
+						SavedStats = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<int, StatData>>(json) ?? new Dictionary<int, StatData>();
+					}
 				}
 			}
 			catch (Exception ex)
@@ -59,7 +85,14 @@ public class ChzzkGameMode : MonoBehaviour
 		{
 			try
 			{
-				string json = Newtonsoft.Json.JsonConvert.SerializeObject(SavedStats);
+				var wrapper = new SaveWrapper
+				{
+					Stats = SavedStats,
+					IsBossRushActive = ChzzkGameMode._isBossRushActive,
+					ForceNextDarkEnemy = ChzzkGameMode._forceNextDarkEnemy,
+					ForceNextOmen = OmenChestPath.ForceNextOmen
+				};
+				string json = Newtonsoft.Json.JsonConvert.SerializeObject(wrapper);
 				System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(saveFilePath));
 				System.IO.File.WriteAllText(saveFilePath, json);
 			}
@@ -150,9 +183,12 @@ public class ChzzkGameMode : MonoBehaviour
 			if (SavedStats.Count > 0)
 			{
 				SavedStats.Clear();
-				Save();
-				UnityEngine.Debug.Log("[ChzzkStatManager] Cleared saved stats because a new run started.");
 			}
+			ChzzkGameMode._isBossRushActive = false;
+			ChzzkGameMode._forceNextDarkEnemy = false;
+			OmenChestPath.ForceNextOmen = false;
+			Save();
+			UnityEngine.Debug.Log("[ChzzkStatManager] Cleared saved stats because a new run started.");
 		}
 	}
 
@@ -215,7 +251,12 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private System.Random _random = new System.Random();
 
-	public static bool ForceNextDarkEnemy = false;
+	private static bool _forceNextDarkEnemy = false;
+	public static bool ForceNextDarkEnemy
+	{
+		get => _forceNextDarkEnemy;
+		set { _forceNextDarkEnemy = value; ChzzkStatManager.Save(); }
+	}
 	public static Map _darkEnemyTargetMap = null;
 
 	private Map _lastMap;
@@ -1983,7 +2024,12 @@ public class ChzzkGameMode : MonoBehaviour
 		ShowFloatingText(nickname + "이(가) 오멘 상자 드롭을 예약했어요!");
 	}
 
-	public static bool IsBossRushActive = false;
+	private static bool _isBossRushActive = false;
+	public static bool IsBossRushActive
+	{
+		get => _isBossRushActive;
+		set { _isBossRushActive = value; ChzzkStatManager.Save(); }
+	}
 	private Coroutine _bossRushCoroutine = null;
 
 	private void DoBossRush(string nickname)
