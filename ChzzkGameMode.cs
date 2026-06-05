@@ -2185,10 +2185,11 @@ public class ChzzkGameMode : MonoBehaviour
 		Character player = GetPlayer();
 		if ((UnityEngine.Object)(object)player == (UnityEngine.Object)null) yield break;
 
-		string[] bossKeys = new string[] { 
+		string[] bossKeys = new string[] 
+		{ 
 			"DarkSkeleton_Phase2", 
-			"First Hero Phase Dark (Sound)", 
-			"Emperor_Renewal" 
+			"First Hero Phase Dark", 
+			"Emperor4" 
 		};
 
 		float spawnOffset = -3f;
@@ -2260,6 +2261,15 @@ public class ChzzkGameMode : MonoBehaviour
 								bossChar.ForceToLookAt(((Component)player).transform.position.x);
 								try { aiCtrl.FoundEnemy(); } catch { }
 							}
+							try
+							{
+								var bt = ((Component)bossChar).GetComponentInChildren<BehaviorDesigner.Runtime.BehaviorTree>();
+								if (bt != null)
+								{
+									bt.SetVariableValue("Target", ((Component)player).gameObject);
+									bt.SetVariableValue("target", ((Component)player).gameObject);
+								}
+							} catch { }
 						}
 					}
 				}
@@ -2337,6 +2347,11 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private void DoBoss(string nickname)
 	{
+		if (IsBossRushActive)
+		{
+			ShowFloatingText("보스 러쉬 중에는 보스를 소환할 수 없습니다!");
+			return;
+		}
 		StartCoroutine(C_DoBoss(nickname));
 	}
 
