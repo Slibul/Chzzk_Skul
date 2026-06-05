@@ -49,27 +49,40 @@ public class OmenChestPath
     }
 
     [HarmonyPrefix]
-    [HarmonyPatch(typeof(Level.DarkEnemySelector), nameof(Level.DarkEnemySelector.ElectIn))]
-    static void DarkEnemySelector_ElectIn_Prefix(System.Collections.Generic.ICollection<Characters.Character> candidates, ref Characters.Abilities.Darks.DarkAbilityConstructor[] ____constructors)
+    [HarmonyPatch(typeof(Level.DarkEnemySelector), "ElectIn")]
+    static void DarkEnemySelector_ElectIn_Prefix(object[] __args, object __instance)
     {
-        if (ChzzkGameMode.ForceNextDarkEnemy && candidates != null)
+        if (!ChzzkGameMode.ForceNextDarkEnemy || __args == null || __args.Length < 1) return;
+        
+        var candidates = __args[0] as System.Collections.IEnumerable;
+        if (candidates == null) return;
+
+        var constructorsField = typeof(Level.DarkEnemySelector).GetField("_constructors", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (constructorsField == null) return;
+        
+        var constructors = constructorsField.GetValue(__instance) as Characters.Abilities.Darks.DarkAbilityConstructor[];
+        if (constructors == null) return;
+
+        int currentLevel = Singletons.Singleton<Hardmode.HardmodeManager>.Instance.currentLevel;
+        if (currentLevel < 0 || currentLevel >= constructors.Length) return;
+        var constructor = constructors[currentLevel];
+
+        foreach (object obj in candidates)
         {
-            foreach (Characters.Character c in candidates)
+            Characters.Character c = obj as Characters.Character;
+            if (c != null && c.type == Characters.Character.Type.TrashMob &&
+                c.key != Characters.Key.Hound &&
+                c.key != Characters.Key.SpiritInFlask &&
+                c.key != Characters.Key.UnstableFlask &&
+                c.key != Characters.Key.UnstableFlasksSpirit &&
+                c.key != Characters.Key.Ent &&
+                c.key != Characters.Key.CannonSpecialist &&
+                c.key != Characters.Key.GiantMushroomEnt &&
+                c.key != Characters.Key.CarleonRecruitInCannon &&
+                c.key != Characters.Key.CarleonRecruit &&
+                c.key != Characters.Key.Unspecified)
             {
-                if (c.type == Characters.Character.Type.TrashMob &&
-                    c.key != Characters.Key.Hound &&
-                    c.key != Characters.Key.SpiritInFlask &&
-                    c.key != Characters.Key.UnstableFlask &&
-                    c.key != Characters.Key.UnstableFlasksSpirit &&
-                    c.key != Characters.Key.Ent &&
-                    c.key != Characters.Key.CannonSpecialist &&
-                    c.key != Characters.Key.GiantMushroomEnt &&
-                    c.key != Characters.Key.CarleonRecruitInCannon &&
-                    c.key != Characters.Key.CarleonRecruit &&
-                    c.key != Characters.Key.Unspecified)
-                {
-                    ____constructors[Singletons.Singleton<Hardmode.HardmodeManager>.Instance.currentLevel].Provide(c);
-                }
+                constructor.Provide(c);
             }
         }
     }
