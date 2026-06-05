@@ -314,6 +314,7 @@ public class ChzzkGameMode : MonoBehaviour
 	public static bool IsScreenEffectActive = false;
 	private int _screenEffectType = 0;
 	private float _screenEffectTimer = 0f;
+	private Characters.Abilities.Debuffs.ReverseHorizontalInput _reverseAbility = null;
 
 	private void LateUpdate()
 	{
@@ -327,6 +328,12 @@ public class ChzzkGameMode : MonoBehaviour
 				{
 					Camera.main.transform.localEulerAngles = Vector3.zero;
 				}
+				if (_reverseAbility != null)
+				{
+					Character p = GetPlayer();
+					if ((UnityEngine.Object)(object)p != (UnityEngine.Object)null) p.ability.Remove(_reverseAbility);
+					_reverseAbility = null;
+				}
 			}
 			else
 			{
@@ -338,11 +345,11 @@ public class ChzzkGameMode : MonoBehaviour
 					}
 					else if (_screenEffectType == 1)
 					{
-						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, 15f * Mathf.Sin(Time.unscaledTime * 4f));
+						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, 15f);
 					}
 					else if (_screenEffectType == 2)
 					{
-						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, Time.unscaledTime * 180f);
+						Camera.main.transform.localEulerAngles = new Vector3(0f, 0f, -15f);
 					}
 				}
 			}
@@ -2084,14 +2091,25 @@ public class ChzzkGameMode : MonoBehaviour
 
 	private void DoRandomScreenEffect(string nickname)
 	{
-		_screenEffectType = _random.Next(3);
+		_screenEffectType = _random.Next(4);
 		_screenEffectTimer = 20f;
 		IsScreenEffectActive = true;
 
 		string effectName = "";
 		if (_screenEffectType == 0) effectName = "화면 뒤집기";
-		else if (_screenEffectType == 1) effectName = "화면 흔들기";
-		else effectName = "화면 빙글빙글";
+		else if (_screenEffectType == 1) effectName = "화면 우측 기울이기";
+		else if (_screenEffectType == 2) effectName = "화면 좌측 기울이기";
+		else effectName = "키 반전";
+
+		if (_screenEffectType == 3)
+		{
+			Character p = GetPlayer();
+			if ((UnityEngine.Object)(object)p != (UnityEngine.Object)null)
+			{
+				_reverseAbility = new Characters.Abilities.Debuffs.ReverseHorizontalInput();
+				p.ability.Add(_reverseAbility);
+			}
+		}
 
 		ShowFloatingText(nickname + "이(가) 랜덤 화면 효과(" + effectName + ")를 발동했어요! (20초)");
 	}
@@ -2106,6 +2124,8 @@ public class ChzzkGameMode : MonoBehaviour
 			"First Hero Phase Dark (Sound)", 
 			"Emperor_Renewal" 
 		};
+
+		float spawnOffset = -3f;
 
 		foreach (string bossName in bossKeys)
 		{
@@ -2141,8 +2161,9 @@ public class ChzzkGameMode : MonoBehaviour
 						Character bossChar = loadedObj.GetComponent<Character>();
 						if ((UnityEngine.Object)(object)bossChar != (UnityEngine.Object)null)
 						{
-							Vector3 spawnPos = ((Component)player).transform.position + Vector3.right * ((_random.Next(2) == 0 ? 1f : -1f) * 3f) + Vector3.up * 0.5f;
+							Vector3 spawnPos = ((Component)player).transform.position + Vector3.right * spawnOffset + Vector3.up * 0.5f;
 							loadedObj.transform.position = spawnPos;
+							spawnOffset += 3f;
 							
 							((Component)bossChar).gameObject.SetActive(true);
 							if (bossChar.attach != null) bossChar.attach.SetActive(true);
@@ -2732,17 +2753,22 @@ public class ChzzkGameMode : MonoBehaviour
 			},
 			new VoteOption
 			{
-				Title = GetBossRushModeName() + " 모드",
-				Votes = 0,
-				Action = delegate(string n) { DoBossRush(n); }
-			},
-			new VoteOption
-			{
 				Title = "랜덤 화면 효과 (20초)",
 				Votes = 0,
 				Action = delegate(string n) { DoRandomScreenEffect(n); }
 			}
 		};
+
+		if (!IsBossRushActive && _random.Next(100) < 5)
+		{
+			list.Add(new VoteOption
+			{
+				Title = GetBossRushModeName() + " 모드",
+				Votes = 0,
+				Action = delegate(string n) { DoBossRush(n); }
+			});
+		}
+
 		for (int num = 0; num < 3; num++)
 		{
 			if (list.Count <= 0)
